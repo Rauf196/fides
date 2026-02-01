@@ -1,0 +1,25 @@
+# rust
+/target/
+Cargo.lock
+
+# environment
+.env
+.env.local
+
+# ide
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# os
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
+
+docs/*
+!docs/logos/
+docs/logos/*
+!docs/logos/logo-alone-no-bg-upscaled.png

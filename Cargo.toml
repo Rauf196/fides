@@ -1,0 +1,66 @@
+[workspace]
+members = [
+    "fides-server",
+    "fides-proto",
+    "fides-load",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Rauf Latifli <r.m.latifli@student.utwente.nl>"]
+license = "MIT"
+
+[workspace.dependencies]
+# async runtime
+tokio = { version = "1.43", features = ["full"] }
+
+# grpc
+tonic = "0.12"
+tonic-build = "0.12"
+prost = "0.13"
+
+# database
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono"] }
+
+# serialization (for metadata jsonb)
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# error handling
+thiserror = "2.0"
+
+# logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# concurrency
+dashmap = "6.1"
+
+# config
+dotenvy = "0.15"
+config = "0.14"
+
+# types
+uuid = { version = "1.0", features = ["v4"] }
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+
+# metrics (prometheus + grafana)
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
+
+# http for metrics endpoint
+axum = "0.8"
+
+# cli
+clap = { version = "4.5", features = ["derive"] }
+
+# load testing
+rand = { version = "0.8", features = ["small_rng"] }
+
+# benchmarking
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[profile.release]
+debug = true  # keep symbols for profiling

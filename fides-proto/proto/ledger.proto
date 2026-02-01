@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package fides.ledger.v1;
+
+// ledger service - RPCs added as implemented
+service LedgerService {
+}
