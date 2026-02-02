@@ -2,6 +2,74 @@ syntax = "proto3";
 
 package fides.ledger.v1;
 
-// ledger service - RPCs added as implemented
+// 5 fundamental account categories from the accounting equation
+enum AccountType {
+  ACCOUNT_TYPE_UNSPECIFIED = 0;
+  ACCOUNT_TYPE_ASSET = 1;
+  ACCOUNT_TYPE_LIABILITY = 2;
+  ACCOUNT_TYPE_EQUITY = 3;
+  ACCOUNT_TYPE_REVENUE = 4;
+  ACCOUNT_TYPE_EXPENSE = 5;
+}
+
+// determines which side (debit/credit) increases the balance
+enum NormalBalance {
+  NORMAL_BALANCE_UNSPECIFIED = 0;
+  NORMAL_BALANCE_DEBIT = 1;
+  NORMAL_BALANCE_CREDIT = 2;
+}
+
+enum EntryType {
+  ENTRY_TYPE_UNSPECIFIED = 0;
+  ENTRY_TYPE_DEBIT = 1;
+  ENTRY_TYPE_CREDIT = 2;
+}
+
+enum EntryStatus {
+  ENTRY_STATUS_UNSPECIFIED = 0;
+  ENTRY_STATUS_PENDING = 1;   // authorized but not settled
+  ENTRY_STATUS_POSTED = 2;    // settled
+  ENTRY_STATUS_VOIDED = 3;    // cancelled
+}
+
+enum TransactionStatus {
+  TRANSACTION_STATUS_UNSPECIFIED = 0;
+  TRANSACTION_STATUS_PENDING = 1;
+  TRANSACTION_STATUS_POSTED = 2;
+  TRANSACTION_STATUS_VOIDED = 3;
+  TRANSACTION_STATUS_FAILED = 4;
+}
+
+message Account {
+  int64 id = 1;
+  AccountType account_type = 2;
+  NormalBalance normal_balance = 3;
+  string asset_code = 4;   // "USD", "EUR", "BTC"
+  int32 asset_scale = 5;   // decimal places (2 for cents, 8 for satoshis)
+  int64 version = 6;       // for optimistic locking
+  int64 created_at = 7;    // unix millis
+}
+
+// single leg of a double-entry transaction (immutable once created)
+message Entry {
+  int64 id = 1;
+  int64 transaction_id = 2;
+  int64 account_id = 3;
+  EntryType entry_type = 4;
+  int64 amount = 5;          // always positive, in smallest unit (cents, satoshis)
+  EntryStatus status = 6;
+  int64 created_at = 7;      // unix millis
+}
+
+// groups entries that must balance (total debits = total credits)
+message Transaction {
+  int64 id = 1;
+  string idempotency_key = 2;  // client-generated uuid to prevent duplicates
+  TransactionStatus status = 3;
+  int64 created_at = 4;        // unix millis
+  int64 posted_at = 5;         // 0 if not yet posted
+}
+
 service LedgerService {
+  // RPCs added as implemented
 }
