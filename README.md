@@ -14,15 +14,16 @@ Double-entry bookkeeping with two-phase transactions, built for banking/fintech 
 
 ## Status
 
-Work in progress. See roadmap below.
+Work in progress.
 
 ## Roadmap
 
-- [ ] Domain types (accounts, entries, transactions)
-- [ ] Double-entry validation
-- [ ] PostgreSQL storage
+- [x] Domain types (accounts, entries, transactions)
+- [x] Double-entry validation
+- [x] PostgreSQL storage
 - [ ] Balance cache
 - [ ] gRPC service
+- [ ] Configuration & startup
 - [ ] Observability
 
 ## License
