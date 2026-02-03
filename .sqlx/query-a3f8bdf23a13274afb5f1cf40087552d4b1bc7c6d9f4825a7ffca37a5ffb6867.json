@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE entries\n            SET status = $2\n            WHERE transaction_id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a3f8bdf23a13274afb5f1cf40087552d4b1bc7c6d9f4825a7ffca37a5ffb6867"
+}

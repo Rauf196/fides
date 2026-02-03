@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id, account_type, asset_code, asset_scale, version, created_at\n            FROM accounts\n            WHERE id = $1\n            FOR UPDATE\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "account_type",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "asset_code",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "asset_scale",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 4,
+        "name": "version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d4d8ab868b2a78405e94f5c8471e7319ae99937bdc6f0c8721e93a8c35d3eb36"
+}

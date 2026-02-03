@@ -1,3 +1,4 @@
+use serde_json::Value as JsonValue;
 use std::fmt;
 
 /// unique identifier for a transaction
@@ -19,6 +20,7 @@ pub struct Transaction {
     id: TransactionId,
     idempotency_key: String,
     status: TransactionStatus,
+    metadata: JsonValue,  // audit info: client_ip, merchant_id, correlation_id, etc.
     created_at: i64,
     posted_at: i64,  // 0 if not yet posted
 }
@@ -60,6 +62,7 @@ impl Transaction {
         id: TransactionId,
         idempotency_key: String,
         status: TransactionStatus,
+        metadata: JsonValue,
         created_at: i64,
         posted_at: i64,
     ) -> Result<Self, TransactionError> {
@@ -87,6 +90,7 @@ impl Transaction {
             id,
             idempotency_key,
             status,
+            metadata,
             created_at,
             posted_at,
         })
@@ -102,6 +106,10 @@ impl Transaction {
 
     pub fn status(&self) -> TransactionStatus {
         self.status
+    }
+
+    pub fn metadata(&self) -> &JsonValue {
+        &self.metadata
     }
 
     pub fn created_at(&self) -> i64 {
@@ -137,6 +145,14 @@ impl std::error::Error for TransactionError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+
+    fn test_metadata() -> JsonValue {
+        json!({
+            "client_ip": "192.168.1.1",
+            "merchant_id": "merchant-123"
+        })
+    }
 
     #[test]
     fn transaction_id_rejects_zero() {
@@ -159,6 +175,7 @@ mod tests {
             TransactionId::new(1).unwrap(),
             "".to_string(),
             TransactionStatus::Pending,
+            test_metadata(),
             1234567890,
             0,
         );
@@ -172,6 +189,7 @@ mod tests {
             TransactionId::new(1).unwrap(),
             "key-123".to_string(),
             TransactionStatus::Pending,
+            test_metadata(),
             0,
             0,
         );
@@ -185,6 +203,7 @@ mod tests {
             TransactionId::new(1).unwrap(),
             "key-123".to_string(),
             TransactionStatus::Posted,
+            test_metadata(),
             1234567890,
             0,  // invalid: posted status requires posted_at > 0
         );
@@ -201,6 +220,7 @@ mod tests {
             TransactionId::new(1).unwrap(),
             "key-123".to_string(),
             TransactionStatus::Pending,
+            test_metadata(),
             1234567890,
             1234567890,  // invalid: pending shouldn't have posted_at
         );
@@ -217,6 +237,7 @@ mod tests {
             TransactionId::new(1).unwrap(),
             "key-123".to_string(),
             TransactionStatus::Voided,
+            test_metadata(),
             1234567890,
             1234567890,  // invalid: voided shouldn't have posted_at
         );
@@ -233,6 +254,7 @@ mod tests {
             TransactionId::new(1).unwrap(),
             "key-123".to_string(),
             TransactionStatus::Failed,
+            test_metadata(),
             1234567890,
             1234567890,  // invalid: failed shouldn't have posted_at
         );
@@ -249,6 +271,7 @@ mod tests {
             TransactionId::new(1).unwrap(),
             "key-123".to_string(),
             TransactionStatus::Pending,
+            test_metadata(),
             1234567890,
             0,
         );
@@ -265,6 +288,7 @@ mod tests {
             TransactionId::new(1).unwrap(),
             "key-123".to_string(),
             TransactionStatus::Posted,
+            test_metadata(),
             1234567890,
             1234567900,
         );
@@ -281,6 +305,7 @@ mod tests {
             TransactionId::new(1).unwrap(),
             "key-123".to_string(),
             TransactionStatus::Voided,
+            test_metadata(),
             1234567890,
             0,  // voided has no posted_at
         );
@@ -297,6 +322,7 @@ mod tests {
             TransactionId::new(1).unwrap(),
             "key-123".to_string(),
             TransactionStatus::Failed,
+            test_metadata(),
             1234567890,
             0,  // failed has no posted_at
         );
@@ -313,5 +339,22 @@ mod tests {
         assert!(TransactionStatus::Posted.is_terminal());
         assert!(TransactionStatus::Voided.is_terminal());
         assert!(TransactionStatus::Failed.is_terminal());
+    }
+
+    #[test]
+    fn metadata_is_accessible() {
+        let metadata = json!({"correlation_id": "abc-123"});
+        let tx = Transaction::new(
+            TransactionId::new(1).unwrap(),
+            "key-123".to_string(),
+            TransactionStatus::Pending,
+            metadata.clone(),
+            1234567890,
+            0,
+        )
+        .unwrap();
+
+        assert_eq!(tx.metadata(), &metadata);
+        assert_eq!(tx.metadata()["correlation_id"], "abc-123");
     }
 }
