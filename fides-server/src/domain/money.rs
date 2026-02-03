@@ -126,4 +126,12 @@ mod tests {
         let b = Amount::new(100).unwrap();
         assert!(a.checked_sub(b).is_err());
     }
+
+    #[test]
+    fn checked_sub_to_zero() {
+        let a = Amount::new(100).unwrap();
+        let b = Amount::new(100).unwrap();
+        let result = a.checked_sub(b).unwrap();
+        assert_eq!(result.value(), 0);
+    }
 }

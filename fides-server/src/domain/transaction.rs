@@ -212,6 +212,38 @@ mod tests {
     }
 
     #[test]
+    fn rejects_voided_with_posted_at() {
+        let result = Transaction::new(
+            TransactionId::new(1).unwrap(),
+            "key-123".to_string(),
+            TransactionStatus::Voided,
+            1234567890,
+            1234567890,  // invalid: voided shouldn't have posted_at
+        );
+
+        assert!(matches!(
+            result,
+            Err(TransactionError::InvalidPostedAt { status: TransactionStatus::Voided, .. })
+        ));
+    }
+
+    #[test]
+    fn rejects_failed_with_posted_at() {
+        let result = Transaction::new(
+            TransactionId::new(1).unwrap(),
+            "key-123".to_string(),
+            TransactionStatus::Failed,
+            1234567890,
+            1234567890,  // invalid: failed shouldn't have posted_at
+        );
+
+        assert!(matches!(
+            result,
+            Err(TransactionError::InvalidPostedAt { status: TransactionStatus::Failed, .. })
+        ));
+    }
+
+    #[test]
     fn accepts_valid_pending_transaction() {
         let result = Transaction::new(
             TransactionId::new(1).unwrap(),
@@ -241,6 +273,38 @@ mod tests {
         let tx = result.unwrap();
         assert_eq!(tx.status(), TransactionStatus::Posted);
         assert!(tx.posted_at() > 0);
+    }
+
+    #[test]
+    fn accepts_valid_voided_transaction() {
+        let result = Transaction::new(
+            TransactionId::new(1).unwrap(),
+            "key-123".to_string(),
+            TransactionStatus::Voided,
+            1234567890,
+            0,  // voided has no posted_at
+        );
+
+        assert!(result.is_ok());
+        let tx = result.unwrap();
+        assert_eq!(tx.status(), TransactionStatus::Voided);
+        assert_eq!(tx.posted_at(), 0);
+    }
+
+    #[test]
+    fn accepts_valid_failed_transaction() {
+        let result = Transaction::new(
+            TransactionId::new(1).unwrap(),
+            "key-123".to_string(),
+            TransactionStatus::Failed,
+            1234567890,
+            0,  // failed has no posted_at
+        );
+
+        assert!(result.is_ok());
+        let tx = result.unwrap();
+        assert_eq!(tx.status(), TransactionStatus::Failed);
+        assert_eq!(tx.posted_at(), 0);
     }
 
     #[test]

@@ -185,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_invalid_timestamp() {
+    fn rejects_zero_timestamp() {
         let result = Entry::new(
             EntryId::new(1).unwrap(),
             TransactionId::new(1).unwrap(),
@@ -200,6 +200,21 @@ mod tests {
     }
 
     #[test]
+    fn rejects_negative_timestamp() {
+        let result = Entry::new(
+            EntryId::new(1).unwrap(),
+            TransactionId::new(1).unwrap(),
+            AccountId::new(1).unwrap(),
+            EntryType::Debit,
+            Amount::new(1000).unwrap(),
+            EntryStatus::Pending,
+            -1000,
+        );
+
+        assert!(matches!(result, Err(EntryError::InvalidTimestamp(-1000))));
+    }
+
+    #[test]
     fn accepts_valid_entry() {
         let entry = valid_entry();
         assert_eq!(entry.amount().value(), 1000);
@@ -208,13 +223,34 @@ mod tests {
     }
 
     #[test]
-    fn entry_types() {
-        assert_ne!(EntryType::Debit, EntryType::Credit);
+    fn accepts_all_entry_types() {
+        for entry_type in [EntryType::Debit, EntryType::Credit] {
+            let result = Entry::new(
+                EntryId::new(1).unwrap(),
+                TransactionId::new(1).unwrap(),
+                AccountId::new(1).unwrap(),
+                entry_type,
+                Amount::new(1000).unwrap(),
+                EntryStatus::Posted,
+                1234567890,
+            );
+            assert!(result.is_ok(), "entry_type {:?} should be valid", entry_type);
+        }
     }
 
     #[test]
-    fn entry_statuses() {
-        assert_ne!(EntryStatus::Pending, EntryStatus::Posted);
-        assert_ne!(EntryStatus::Posted, EntryStatus::Voided);
+    fn accepts_all_entry_statuses() {
+        for status in [EntryStatus::Pending, EntryStatus::Posted, EntryStatus::Voided] {
+            let result = Entry::new(
+                EntryId::new(1).unwrap(),
+                TransactionId::new(1).unwrap(),
+                AccountId::new(1).unwrap(),
+                EntryType::Debit,
+                Amount::new(1000).unwrap(),
+                status,
+                1234567890,
+            );
+            assert!(result.is_ok(), "status {:?} should be valid", status);
+        }
     }
 }

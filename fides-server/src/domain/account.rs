@@ -228,6 +228,21 @@ mod tests {
     }
 
     #[test]
+    fn accepts_max_valid_scale() {
+        let result = Account::new(
+            AccountId::new(1).unwrap(),
+            AccountType::Asset,
+            "ETH".to_string(),
+            18, // max valid scale (wei)
+            0,
+            1000,
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().asset_scale(), 18);
+    }
+
+    #[test]
     fn rejects_negative_version() {
         let result = Account::new(
             AccountId::new(1).unwrap(),
@@ -242,7 +257,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_invalid_timestamp() {
+    fn rejects_zero_timestamp() {
         let result = Account::new(
             AccountId::new(1).unwrap(),
             AccountType::Asset,
@@ -253,6 +268,20 @@ mod tests {
         );
 
         assert!(matches!(result, Err(AccountError::InvalidTimestamp(0))));
+    }
+
+    #[test]
+    fn rejects_negative_timestamp() {
+        let result = Account::new(
+            AccountId::new(1).unwrap(),
+            AccountType::Asset,
+            "USD".to_string(),
+            2,
+            0,
+            -1000,
+        );
+
+        assert!(matches!(result, Err(AccountError::InvalidTimestamp(-1000))));
     }
 
     #[test]
