@@ -5,7 +5,7 @@
 <h1 align="center">Fides</h1>
 
 <p align="center">
-  <strong>Production-grade financial ledger in Rust</strong>
+  <strong>Double-entry financial ledger in Rust</strong>
 </p>
 
 ---

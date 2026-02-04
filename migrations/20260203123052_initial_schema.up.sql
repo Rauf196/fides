@@ -1,11 +1,14 @@
 -- accounts: balance holders
 -- normal_balance is derived from account_type, not stored
+-- posted_balance/pending_balance are materialized for O(1) reads
 CREATE TABLE accounts (
     id              BIGSERIAL PRIMARY KEY,
     account_type    SMALLINT NOT NULL,
     asset_code      VARCHAR(16) NOT NULL,
     asset_scale     SMALLINT NOT NULL,
     version         INTEGER NOT NULL DEFAULT 0,
+    posted_balance  BIGINT NOT NULL DEFAULT 0,
+    pending_balance BIGINT NOT NULL DEFAULT 0,
     created_at      BIGINT NOT NULL,
 
     CONSTRAINT chk_account_type CHECK (account_type BETWEEN 1 AND 5),

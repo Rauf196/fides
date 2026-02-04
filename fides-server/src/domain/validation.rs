@@ -64,8 +64,8 @@ impl TransferLeg {
 }
 
 impl AccountBalance {
-    /// construct from computed values (internal use)
-    pub(crate) fn from_computed(posted: i64, pending: i64, available: i64) -> Self {
+    /// construct from computed values
+    pub fn from_computed(posted: i64, pending: i64, available: i64) -> Self {
         AccountBalance {
             posted,
             pending,
@@ -193,6 +193,29 @@ pub fn compute_account_balance(
         .ok_or(ValidationError::BalanceOverflow)?;
 
     Ok(AccountBalance::from_computed(posted, pending, available))
+}
+
+/// compute the signed delta to apply to an account's balance
+///
+/// positive = increases balance, negative = decreases balance
+///
+/// this follows the accounting sign convention:
+/// - debit-normal accounts (asset, expense): debits increase, credits decrease
+/// - credit-normal accounts (liability, equity, revenue): credits increase, debits decrease
+pub fn compute_balance_delta(
+    normal_balance: NormalBalance,
+    entry_type: EntryType,
+    amount: Amount,
+) -> i64 {
+    let raw = amount.value();
+    match (normal_balance, entry_type) {
+        // same direction as normal balance = positive delta
+        (NormalBalance::Debit, EntryType::Debit) => raw,
+        (NormalBalance::Credit, EntryType::Credit) => raw,
+        // opposite direction = negative delta
+        (NormalBalance::Debit, EntryType::Credit) => -raw,
+        (NormalBalance::Credit, EntryType::Debit) => -raw,
+    }
 }
 
 impl fmt::Display for TransferLegError {
@@ -475,6 +498,75 @@ mod tests {
         assert_eq!(balance.posted(), 500);
         assert_eq!(balance.pending(), 100);
         assert_eq!(balance.available(), 400); // 500 - 100
+    }
+
+    // compute_balance_delta tests
+
+    #[test]
+    fn compute_balance_delta_debit_on_debit_normal() {
+        let delta = compute_balance_delta(
+            NormalBalance::Debit,
+            EntryType::Debit,
+            Amount::new(1000).unwrap(),
+        );
+        assert_eq!(delta, 1000); // same direction = positive
+    }
+
+    #[test]
+    fn compute_balance_delta_credit_on_debit_normal() {
+        let delta = compute_balance_delta(
+            NormalBalance::Debit,
+            EntryType::Credit,
+            Amount::new(1000).unwrap(),
+        );
+        assert_eq!(delta, -1000); // opposite direction = negative
+    }
+
+    #[test]
+    fn compute_balance_delta_credit_on_credit_normal() {
+        let delta = compute_balance_delta(
+            NormalBalance::Credit,
+            EntryType::Credit,
+            Amount::new(1000).unwrap(),
+        );
+        assert_eq!(delta, 1000); // same direction = positive
+    }
+
+    #[test]
+    fn compute_balance_delta_debit_on_credit_normal() {
+        let delta = compute_balance_delta(
+            NormalBalance::Credit,
+            EntryType::Debit,
+            Amount::new(1000).unwrap(),
+        );
+        assert_eq!(delta, -1000); // opposite direction = negative
+    }
+
+    #[test]
+    fn compute_balance_delta_matches_compute_account_balance() {
+        // verify that applying deltas produces the same result as compute_account_balance
+        // for each normal_balance + entry_type combination
+        let test_cases = [
+            (NormalBalance::Debit, EntryType::Debit, 500),
+            (NormalBalance::Debit, EntryType::Credit, 300),
+            (NormalBalance::Credit, EntryType::Credit, 500),
+            (NormalBalance::Credit, EntryType::Debit, 300),
+        ];
+
+        for (normal, entry_type, amt) in test_cases {
+            let amount = Amount::new(amt).unwrap();
+            let delta = compute_balance_delta(normal, entry_type, amount);
+
+            // create a single posted entry and compute balance
+            let entries = vec![entry(1, 1, entry_type, amt, EntryStatus::Posted)];
+            let balance = compute_account_balance(normal, &entries).unwrap();
+
+            assert_eq!(
+                delta, balance.posted(),
+                "delta {} should match posted balance {} for {:?}/{:?}",
+                delta, balance.posted(), normal, entry_type
+            );
+        }
     }
 
     #[test]

@@ -1,4 +1,7 @@
+pub mod cache;
 pub mod postgres;
+
+pub use cache::BalanceCache;
 
 use std::fmt;
 

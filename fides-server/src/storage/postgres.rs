@@ -431,6 +431,88 @@ impl PostgresStorage {
 
         Ok(result.rows_affected())
     }
+
+    /// fetch account's materialized balance
+    pub async fn get_account_balance(
+        &self,
+        tx: &mut Tx<'_>,
+        id: AccountId,
+    ) -> Result<Option<(i64, i64)>, StorageError> {
+        let row = sqlx::query!(
+            "SELECT posted_balance, pending_balance FROM accounts WHERE id = $1",
+            id.value(),
+        )
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        Ok(row.map(|r| (r.posted_balance, r.pending_balance)))
+    }
+
+    /// atomically update account balance with optimistic locking
+    /// delta_posted/delta_pending are signed values to ADD to current balance
+    pub async fn update_account_balance(
+        &self,
+        tx: &mut Tx<'_>,
+        id: AccountId,
+        expected_version: i64,
+        delta_posted: i64,
+        delta_pending: i64,
+    ) -> Result<(), StorageError> {
+        let result = sqlx::query!(
+            r#"
+            UPDATE accounts
+            SET posted_balance = posted_balance + $3,
+                pending_balance = pending_balance + $4,
+                version = version + 1
+            WHERE id = $1 AND version = $2
+            "#,
+            id.value(),
+            expected_version as i32,
+            delta_posted,
+            delta_pending,
+        )
+        .execute(&mut **tx)
+        .await?;
+
+        if result.rows_affected() == 0 {
+            // fetch current version to provide useful error
+            let current = sqlx::query_scalar!(
+                "SELECT version FROM accounts WHERE id = $1",
+                id.value()
+            )
+            .fetch_optional(&mut **tx)
+            .await?;
+
+            match current {
+                Some(v) => Err(StorageError::VersionConflict {
+                    entity: "account",
+                    id: id.value(),
+                    expected: expected_version,
+                    actual: v as i64,
+                }),
+                None => Err(StorageError::DataCorruption(format!(
+                    "account {} not found during balance update",
+                    id
+                ))),
+            }
+        } else {
+            Ok(())
+        }
+    }
+
+    /// load all account balances for cache rehydration
+    pub async fn load_all_balances(&self) -> Result<Vec<(AccountId, i64, i64)>, StorageError> {
+        let rows = sqlx::query!(
+            "SELECT id, posted_balance, pending_balance FROM accounts"
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|r| (AccountId::from_raw(r.id), r.posted_balance, r.pending_balance))
+            .collect())
+    }
 }
 
 fn account_type_to_i16(t: AccountType) -> i16 {
