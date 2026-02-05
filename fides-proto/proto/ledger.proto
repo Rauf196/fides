@@ -70,6 +70,90 @@ message Transaction {
   int64 posted_at = 5;         // 0 if not yet posted
 }
 
+// computed balance for an account
+message Balance {
+  int64 posted = 1;     // settled balance
+  int64 pending = 2;    // sum of pending holds
+  int64 available = 3;  // posted - pending
+}
+
+// input for a single leg of a transaction
+message TransferLeg {
+  int64 account_id = 1;
+  EntryType entry_type = 2;
+  int64 amount = 3;  // must be > 0
+}
+
+// requests and responses
+
+message CreateAccountRequest {
+  AccountType account_type = 1;
+  string asset_code = 2;
+  int32 asset_scale = 3;
+}
+
+message CreateAccountResponse {
+  Account account = 1;
+}
+
+message GetAccountRequest {
+  int64 account_id = 1;
+}
+
+message GetAccountResponse {
+  Account account = 1;
+}
+
+message GetBalanceRequest {
+  int64 account_id = 1;
+}
+
+message GetBalanceResponse {
+  Balance balance = 1;
+}
+
+message AuthorizeRequest {
+  string idempotency_key = 1;        // client-generated uuid
+  repeated TransferLeg legs = 2;     // must balance (debits = credits)
+  string metadata = 3;               // json string for audit context
+}
+
+message AuthorizeResponse {
+  Transaction transaction = 1;
+  repeated Entry entries = 2;
+}
+
+message CaptureRequest {
+  int64 transaction_id = 1;
+}
+
+message CaptureResponse {
+  Transaction transaction = 1;
+}
+
+message VoidRequest {
+  int64 transaction_id = 1;
+}
+
+message VoidResponse {
+  Transaction transaction = 1;
+}
+
+message GetEntriesRequest {
+  int64 account_id = 1;
+}
+
 service LedgerService {
-  // RPCs added as implemented
+  // account management
+  rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
+  rpc GetAccount(GetAccountRequest) returns (GetAccountResponse);
+  rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse);
+
+  // two-phase transactions
+  rpc Authorize(AuthorizeRequest) returns (AuthorizeResponse);
+  rpc Capture(CaptureRequest) returns (CaptureResponse);
+  rpc Void(VoidRequest) returns (VoidResponse);
+
+  // audit
+  rpc GetEntries(GetEntriesRequest) returns (stream Entry);
 }

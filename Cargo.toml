@@ -15,6 +15,7 @@ license = "MIT"
 [workspace.dependencies]
 # async runtime
 tokio = { version = "1.43", features = ["full"] }
+tokio-stream = "0.1"
 
 # grpc
 tonic = "0.12"
