@@ -6,6 +6,9 @@ Cargo.lock
 .env
 .env.local
 
+# config (use config.example.toml as template)
+config.toml
+
 # ide
 .idea/
 .vscode/

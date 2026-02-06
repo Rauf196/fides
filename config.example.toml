@@ -1,0 +1,15 @@
+[server]
+grpc_port = 50051
+http_port = 9090
+shutdown_timeout_secs = 30
+
+[database]
+url = "postgres://localhost/fides"
+max_connections = 10
+min_connections = 1
+acquire_timeout_secs = 5
+idle_timeout_secs = 600
+
+[logging]
+level = "info"
+format = "pretty"
