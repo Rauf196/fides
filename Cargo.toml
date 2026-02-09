@@ -4,6 +4,7 @@ members = [
     "fides-proto",
     "fides-load",
 ]
+default-members = ["fides-server"]
 resolver = "2"
 
 [workspace.package]
@@ -53,6 +54,11 @@ metrics-exporter-prometheus = "0.16"
 
 # http for metrics endpoint
 axum = "0.8"
+
+# tower (shared between tonic 0.12/tower 0.4 and axum 0.8/tower 0.5)
+tower-layer = "0.3"
+tower-service = "0.3"
+http = "1"
 
 # cli
 clap = { version = "4.5", features = ["derive"] }

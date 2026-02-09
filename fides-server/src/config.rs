@@ -14,6 +14,7 @@ const DEFAULT_ACQUIRE_TIMEOUT_SECS: u64 = 5;
 const DEFAULT_IDLE_TIMEOUT_SECS: u64 = 600;
 const DEFAULT_LOG_LEVEL: &str = "info";
 const DEFAULT_LOG_FORMAT: &str = "json";
+const DEFAULT_INTEGRITY_CHECK_INTERVAL_SECS: u64 = 60;
 
 #[derive(Debug)]
 pub enum ConfigError {
@@ -26,6 +27,7 @@ pub struct AppConfig {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
     pub logging: LoggingConfig,
+    pub observability: ObservabilityConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -50,6 +52,11 @@ pub struct LoggingConfig {
     pub format: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct ObservabilityConfig {
+    pub integrity_check_interval_secs: u64,
+}
+
 impl AppConfig {
     /// load config from defaults, file, env vars, and DATABASE_URL
     ///
@@ -66,7 +73,8 @@ impl AppConfig {
             .set_default("database.acquire_timeout_secs", DEFAULT_ACQUIRE_TIMEOUT_SECS as i64)?
             .set_default("database.idle_timeout_secs", DEFAULT_IDLE_TIMEOUT_SECS as i64)?
             .set_default("logging.level", DEFAULT_LOG_LEVEL)?
-            .set_default("logging.format", DEFAULT_LOG_FORMAT)?;
+            .set_default("logging.format", DEFAULT_LOG_FORMAT)?
+            .set_default("observability.integrity_check_interval_secs", DEFAULT_INTEGRITY_CHECK_INTERVAL_SECS as i64)?;
 
         // config file: --config makes it required, otherwise optional config.toml
         match config_path {
@@ -129,6 +137,13 @@ impl AppConfig {
             ));
         }
 
+        if self.observability.integrity_check_interval_secs < 10 {
+            return Err(ConfigError::Validation(format!(
+                "observability.integrity_check_interval_secs must be >= 10, got {}",
+                self.observability.integrity_check_interval_secs,
+            )));
+        }
+
         Ok(())
     }
 
@@ -143,6 +158,7 @@ impl AppConfig {
             min_connections = self.database.min_connections,
             log_level = %self.logging.level,
             log_format = %self.logging.format,
+            integrity_check_interval_secs = self.observability.integrity_check_interval_secs,
             "configuration loaded",
         );
     }
@@ -287,6 +303,13 @@ mod tests {
         assert!(config.validate().is_ok());
     }
 
+    #[test]
+    fn validate_low_integrity_interval() {
+        let config = test_config(|c| c.observability.integrity_check_interval_secs = 5);
+        let err = config.validate().unwrap_err();
+        assert!(err.to_string().contains("integrity_check_interval_secs must be >= 10"));
+    }
+
     fn test_config(modify: impl FnOnce(&mut AppConfig)) -> AppConfig {
         let mut config = AppConfig {
             server: ServerConfig {
@@ -304,6 +327,9 @@ mod tests {
             logging: LoggingConfig {
                 level: DEFAULT_LOG_LEVEL.into(),
                 format: DEFAULT_LOG_FORMAT.into(),
+            },
+            observability: ObservabilityConfig {
+                integrity_check_interval_secs: DEFAULT_INTEGRITY_CHECK_INTERVAL_SECS,
             },
         };
         modify(&mut config);

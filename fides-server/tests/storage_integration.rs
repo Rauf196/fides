@@ -820,6 +820,17 @@ async fn load_all_balances_returns_committed_accounts() {
     let (_, posted2, pending2) = b2.unwrap();
     assert_eq!(*posted2, 2000);
     assert_eq!(*pending2, 200);
+
+    // clean up committed test data — these accounts have materialized balances
+    // but no entries, which would cause integrity check warnings on next server start
+    let mut cleanup = storage.begin().await.unwrap();
+    sqlx::query("DELETE FROM accounts WHERE id = $1 OR id = $2")
+        .bind(id1.value())
+        .bind(id2.value())
+        .execute(&mut *cleanup)
+        .await
+        .unwrap();
+    cleanup.commit().await.unwrap();
 }
 
 #[tokio::test]

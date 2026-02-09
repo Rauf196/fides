@@ -11,8 +11,8 @@ struct CachedBalance {
 
 /// in-memory balance cache backed by DashMap
 ///
-/// this cache mirrors the posted_balance and pending_balance columns in the database.
-/// update AFTER db commit to ensure consistency (microsecond staleness is acceptable).
+/// mirrors posted_balance and pending_balance from the accounts table.
+/// updated after db commit — microsecond staleness window before cache reflects committed state.
 pub struct BalanceCache {
     balances: DashMap<AccountId, CachedBalance>,
 }
@@ -61,6 +61,16 @@ impl BalanceCache {
     /// remove an account from cache
     pub fn remove(&self, id: AccountId) {
         self.balances.remove(&id);
+    }
+
+    /// snapshot all cached balances into a vec.
+    ///
+    /// collects immediately to release DashMap shard locks.
+    pub fn iter(&self) -> Vec<(AccountId, i64, i64)> {
+        self.balances
+            .iter()
+            .map(|entry| (*entry.key(), entry.value().posted, entry.value().pending))
+            .collect()
     }
 
     pub fn len(&self) -> usize {

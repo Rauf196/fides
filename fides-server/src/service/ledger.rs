@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use metrics::counter;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
@@ -36,6 +37,7 @@ impl LedgerService {
 
 #[tonic::async_trait]
 impl LedgerServiceTrait for LedgerService {
+    #[tracing::instrument(skip(self, request), fields(method = "CreateAccount"))]
     async fn create_account(
         &self,
         request: Request<CreateAccountRequest>,
@@ -79,6 +81,7 @@ impl LedgerServiceTrait for LedgerService {
         }))
     }
 
+    #[tracing::instrument(skip(self, request), fields(method = "GetAccount"))]
     async fn get_account(
         &self,
         request: Request<GetAccountRequest>,
@@ -104,6 +107,7 @@ impl LedgerServiceTrait for LedgerService {
         }))
     }
 
+    #[tracing::instrument(skip(self, request), fields(method = "GetBalance"))]
     async fn get_balance(
         &self,
         request: Request<GetBalanceRequest>,
@@ -127,6 +131,7 @@ impl LedgerServiceTrait for LedgerService {
         }))
     }
 
+    #[tracing::instrument(skip(self, request), fields(method = "Authorize"))]
     async fn authorize(
         &self,
         request: Request<AuthorizeRequest>,
@@ -170,6 +175,7 @@ impl LedgerServiceTrait for LedgerService {
 
             tx.commit().await.map_err(|e| ServiceError::Internal(e.to_string()))?;
 
+            counter!("fides_idempotent_hits_total", "method" => "authorize").increment(1);
             return Ok(Response::new(AuthorizeResponse {
                 transaction: Some(transaction_to_proto(&existing)),
                 entries: entries.iter().map(entry_to_proto).collect(),
@@ -221,6 +227,7 @@ impl LedgerServiceTrait for LedgerService {
                 })?;
 
                 if !balance.has_available(leg.amount()) {
+                    counter!("fides_insufficient_funds_total").increment(1);
                     return Err(ServiceError::InsufficientFunds {
                         account_id: leg.account_id().value(),
                         available: balance.available(),
@@ -310,6 +317,8 @@ impl LedgerServiceTrait for LedgerService {
             self.cache.apply_delta(account_id, posted_delta, pending_delta);
         }
 
+        counter!("fides_transactions_total", "status" => "pending").increment(1);
+
         let transaction = Transaction::new(
             transaction_id,
             req.idempotency_key,
@@ -326,6 +335,7 @@ impl LedgerServiceTrait for LedgerService {
         }))
     }
 
+    #[tracing::instrument(skip(self, request), fields(method = "Capture"))]
     async fn capture(
         &self,
         request: Request<CaptureRequest>,
@@ -350,6 +360,7 @@ impl LedgerServiceTrait for LedgerService {
         // idempotency: already captured = success
         if transaction.status() == TransactionStatus::Posted {
             tx.commit().await.map_err(|e| ServiceError::Internal(e.to_string()))?;
+            counter!("fides_idempotent_hits_total", "method" => "capture").increment(1);
             return Ok(Response::new(CaptureResponse {
                 transaction: Some(transaction_to_proto(&transaction)),
             }));
@@ -438,6 +449,8 @@ impl LedgerServiceTrait for LedgerService {
             self.cache.apply_delta(account_id, posted_delta, pending_delta);
         }
 
+        counter!("fides_transactions_total", "status" => "posted").increment(1);
+
         let updated_transaction = Transaction::new(
             transaction_id,
             transaction.idempotency_key().to_string(),
@@ -453,6 +466,7 @@ impl LedgerServiceTrait for LedgerService {
         }))
     }
 
+    #[tracing::instrument(skip(self, request), fields(method = "Void"))]
     async fn void(
         &self,
         request: Request<VoidRequest>,
@@ -475,6 +489,7 @@ impl LedgerServiceTrait for LedgerService {
         // idempotency: already voided = success
         if transaction.status() == TransactionStatus::Voided {
             tx.commit().await.map_err(|e| ServiceError::Internal(e.to_string()))?;
+            counter!("fides_idempotent_hits_total", "method" => "void").increment(1);
             return Ok(Response::new(VoidResponse {
                 transaction: Some(transaction_to_proto(&transaction)),
             }));
@@ -562,6 +577,8 @@ impl LedgerServiceTrait for LedgerService {
             self.cache.apply_delta(account_id, posted_delta, pending_delta);
         }
 
+        counter!("fides_transactions_total", "status" => "voided").increment(1);
+
         let updated_transaction = Transaction::new(
             transaction_id,
             transaction.idempotency_key().to_string(),
@@ -579,6 +596,7 @@ impl LedgerServiceTrait for LedgerService {
 
     type GetEntriesStream = ReceiverStream<Result<ProtoEntry, Status>>;
 
+    #[tracing::instrument(skip(self, request), fields(method = "GetEntries"))]
     async fn get_entries(
         &self,
         request: Request<GetEntriesRequest>,

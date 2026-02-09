@@ -4,6 +4,11 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+default-run = "fides"
+
+[[bin]]
+name = "fides"
+path = "src/main.rs"
 
 [dependencies]
 fides-proto = { path = "../fides-proto" }
@@ -25,6 +30,9 @@ serde_json = { workspace = true }
 metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
 axum = { workspace = true }
+tower-layer = { workspace = true }
+tower-service = { workspace = true }
+http = { workspace = true }
 clap = { workspace = true }
 
 [dev-dependencies]

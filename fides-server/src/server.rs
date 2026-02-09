@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use metrics::gauge;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use tokio::sync::watch;
@@ -10,6 +11,8 @@ use fides_proto::ledger_service_server::LedgerServiceServer;
 
 use crate::config::AppConfig;
 use crate::health::HealthState;
+use crate::observability::grpc_metrics::GrpcMetricsLayer;
+use crate::observability::integrity::IntegrityChecker;
 use crate::service::ledger::LedgerService;
 use crate::storage::postgres::PostgresStorage;
 use crate::storage::BalanceCache;
@@ -38,12 +41,15 @@ pub async fn run_migrations(pool: &PgPool) -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
-/// start the ledger server (gRPC + HTTP health), block until shutdown
+/// start the ledger server (gRPC + HTTP health/metrics), block until shutdown
 pub async fn serve(
     pool: PgPool,
     config: &AppConfig,
     shutdown_signal: impl std::future::Future<Output = ()> + Send + 'static,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // install metrics recorder (idempotent via OnceLock)
+    let metrics_handle = crate::observability::metrics::install_recorder();
+
     let storage = Arc::new(PostgresStorage::new(pool.clone()));
     let cache = Arc::new(BalanceCache::new());
 
@@ -53,16 +59,49 @@ pub async fn serve(
     cache.rehydrate(balances);
     tracing::info!(accounts = count, "balance cache rehydrated");
 
-    let ledger_service = LedgerService::new(storage, cache);
+    let ledger_service = LedgerService::new(storage, cache.clone());
 
     // shutdown coordination
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
-    // http server (health probes)
+    // spawn gauge poll task (pool stats + cache size, every 15s)
+    let gauge_pool = pool.clone();
+    let gauge_cache = cache.clone();
+    let mut gauge_shutdown_rx = shutdown_rx.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(15));
+        loop {
+            let should_run = tokio::select! {
+                _ = interval.tick() => true,
+                _ = gauge_shutdown_rx.wait_for(|v| *v) => false,
+            };
+
+            if should_run {
+                gauge!("fides_db_pool_size").set(gauge_pool.size() as f64);
+                gauge!("fides_db_pool_idle").set(gauge_pool.num_idle() as f64);
+                gauge!("fides_balance_cache_accounts").set(gauge_cache.len() as f64);
+            } else {
+                break;
+            }
+        }
+    });
+
+    // spawn integrity checker
+    let integrity_interval = Duration::from_secs(
+        config.observability.integrity_check_interval_secs,
+    );
+    let checker = IntegrityChecker::new(pool.clone(), cache, integrity_interval);
+    let integrity_shutdown_rx = shutdown_rx.clone();
+    tokio::spawn(async move {
+        checker.run(integrity_shutdown_rx).await;
+    });
+
+    // http server (health probes + metrics endpoint)
     let http_addr = SocketAddr::from(([0, 0, 0, 0], config.server.http_port));
     let health_state = HealthState::new(pool.clone());
     let health_shutdown = health_state.clone();
-    let http_router = crate::health::router(health_state);
+    let http_router = crate::health::router(health_state)
+        .merge(crate::observability::metrics::router(metrics_handle));
 
     let mut http_shutdown_rx = shutdown_rx.clone();
     let http_handle = tokio::spawn(async move {
@@ -75,11 +114,12 @@ pub async fn serve(
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     });
 
-    // grpc server
+    // grpc server (with metrics layer)
     let grpc_addr = SocketAddr::from(([0, 0, 0, 0], config.server.grpc_port));
     let mut grpc_shutdown_rx = shutdown_rx.clone();
     let grpc_handle = tokio::spawn(async move {
         tonic::transport::Server::builder()
+            .layer(GrpcMetricsLayer)
             .add_service(LedgerServiceServer::new(ledger_service))
             .serve_with_shutdown(grpc_addr, async move {
                 let _ = grpc_shutdown_rx.wait_for(|v| *v).await;
@@ -101,7 +141,7 @@ pub async fn serve(
     // mark not ready so k8s diverts new traffic immediately
     health_shutdown.set_shutting_down();
 
-    // notify both servers to stop accepting
+    // notify all tasks to stop
     let _ = shutdown_tx.send(true);
 
     // wait for servers to drain with timeout

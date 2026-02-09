@@ -13,3 +13,6 @@ idle_timeout_secs = 600
 [logging]
 level = "info"
 format = "pretty"
+
+[observability]
+integrity_check_interval_secs = 60
