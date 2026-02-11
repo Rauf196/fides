@@ -86,7 +86,8 @@ async fn run(command: Command, config: AppConfig) -> Result<(), Box<dyn std::err
             if run_migrations {
                 server::run_migrations(&pool).await?;
             }
-            server::serve(pool, &config, os_shutdown_signal()).await
+            let handle = server::serve(pool, &config).await?;
+            handle.run(os_shutdown_signal()).await
         }
     }
 }

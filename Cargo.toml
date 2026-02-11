@@ -69,5 +69,8 @@ rand = { version = "0.8", features = ["small_rng"] }
 # benchmarking
 criterion = { version = "0.5", features = ["html_reports"] }
 
+# property testing
+proptest = "1"
+
 [profile.release]
 debug = true  # keep symbols for profiling

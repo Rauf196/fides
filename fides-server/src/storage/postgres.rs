@@ -307,6 +307,8 @@ impl PostgresStorage {
     }
 
     /// create a new entry, returns the generated id
+    // each param maps to an INSERT column, no natural grouping
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_entry(
         &self,
         tx: &mut Tx<'_>,
