@@ -194,10 +194,7 @@ async fn authorize_idempotent() {
         .into_inner();
 
     // same transaction returned, no duplicate
-    assert_eq!(
-        resp1.transaction.unwrap().id,
-        resp2.transaction.unwrap().id
-    );
+    assert_eq!(resp1.transaction.unwrap().id, resp2.transaction.unwrap().id);
 
     // balance only changed once (credit on debit-normal = -100)
     let bal = get_balance(&mut client, asset).await;
@@ -534,7 +531,11 @@ async fn get_entries_returns_transaction_entries() {
     }
 
     // funding (debit 10_000, posted) + authorize (credit 750, pending)
-    assert!(entries.len() >= 2, "expected at least 2 entries, got {}", entries.len());
+    assert!(
+        entries.len() >= 2,
+        "expected at least 2 entries, got {}",
+        entries.len()
+    );
 
     // verify all entries belong to this account
     for entry in &entries {
@@ -625,10 +626,7 @@ async fn create_equity(client: &mut LedgerServiceClient<Channel>) -> i64 {
 ///
 /// accounting: equity is a credit-normal account (source of funds),
 /// asset is debit-normal (destination). funding = debit asset, credit equity.
-async fn setup_funded_asset(
-    client: &mut LedgerServiceClient<Channel>,
-    amount: i64,
-) -> (i64, i64) {
+async fn setup_funded_asset(client: &mut LedgerServiceClient<Channel>, amount: i64) -> (i64, i64) {
     let asset = create_asset(client).await;
     let equity = create_equity(client).await;
 
@@ -721,7 +719,10 @@ async fn http_get_response(addr: std::net::SocketAddr, path: &str) -> String {
 
 async fn http_get_raw(addr: std::net::SocketAddr, path: &str) -> String {
     let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
-    let request = format!("GET {} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n", path);
+    let request = format!(
+        "GET {} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+        path
+    );
     stream.write_all(request.as_bytes()).await.unwrap();
 
     let mut response = String::new();

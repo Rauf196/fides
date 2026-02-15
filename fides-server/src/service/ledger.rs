@@ -6,12 +6,11 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
 use fides_proto::{
-    ledger_service_server::LedgerService as LedgerServiceTrait,
-    Account as ProtoAccount, AuthorizeRequest, AuthorizeResponse, Balance as ProtoBalance,
-    CaptureRequest, CaptureResponse, CreateAccountRequest, CreateAccountResponse, Entry as ProtoEntry,
-    GetAccountRequest, GetAccountResponse, GetBalanceRequest, GetBalanceResponse,
-    GetEntriesRequest, Transaction as ProtoTransaction, TransferLeg as ProtoTransferLeg,
-    VoidRequest, VoidResponse,
+    ledger_service_server::LedgerService as LedgerServiceTrait, Account as ProtoAccount,
+    AuthorizeRequest, AuthorizeResponse, Balance as ProtoBalance, CaptureRequest, CaptureResponse,
+    CreateAccountRequest, CreateAccountResponse, Entry as ProtoEntry, GetAccountRequest,
+    GetAccountResponse, GetBalanceRequest, GetBalanceResponse, GetEntriesRequest,
+    Transaction as ProtoTransaction, TransferLeg as ProtoTransferLeg, VoidRequest, VoidResponse,
 };
 
 use crate::domain::account::{Account, AccountId, AccountType, NormalBalance};
@@ -37,7 +36,7 @@ impl LedgerService {
 
 #[tonic::async_trait]
 impl LedgerServiceTrait for LedgerService {
-    #[tracing::instrument(skip(self, request), fields(method = "CreateAccount"))]
+    #[tracing::instrument(skip(self, request), fields(method = "CreateAccount", account_id))]
     async fn create_account(
         &self,
         request: Request<CreateAccountRequest>,
@@ -55,7 +54,8 @@ impl LedgerServiceTrait for LedgerService {
             return Err(ServiceError::InvalidArgument(format!(
                 "asset_scale {} exceeds max 18",
                 asset_scale
-            )).into());
+            ))
+            .into());
         }
 
         let now = now_millis();
@@ -68,7 +68,11 @@ impl LedgerServiceTrait for LedgerService {
             .await
             .map_err(ServiceError::from)?;
 
-        tx.commit().await.map_err(|e| ServiceError::Internal(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| ServiceError::Internal(e.to_string()))?;
+
+        tracing::Span::current().record("account_id", account_id.value());
 
         // add to cache with zero balances
         self.cache.set(account_id, 0, 0);
@@ -81,13 +85,14 @@ impl LedgerServiceTrait for LedgerService {
         }))
     }
 
-    #[tracing::instrument(skip(self, request), fields(method = "GetAccount"))]
+    #[tracing::instrument(skip(self, request), fields(method = "GetAccount", account_id))]
     async fn get_account(
         &self,
         request: Request<GetAccountRequest>,
     ) -> Result<Response<GetAccountResponse>, Status> {
         let req = request.into_inner();
         let account_id = AccountId::new(req.account_id).map_err(ServiceError::from)?;
+        tracing::Span::current().record("account_id", account_id.value());
 
         let mut tx = self.storage.begin().await.map_err(ServiceError::from)?;
 
@@ -100,27 +105,31 @@ impl LedgerServiceTrait for LedgerService {
                 account_id: account_id.value(),
             })?;
 
-        tx.commit().await.map_err(|e| ServiceError::Internal(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| ServiceError::Internal(e.to_string()))?;
 
         Ok(Response::new(GetAccountResponse {
             account: Some(account_to_proto(&account)),
         }))
     }
 
-    #[tracing::instrument(skip(self, request), fields(method = "GetBalance"))]
+    #[tracing::instrument(skip(self, request), fields(method = "GetBalance", account_id))]
     async fn get_balance(
         &self,
         request: Request<GetBalanceRequest>,
     ) -> Result<Response<GetBalanceResponse>, Status> {
         let req = request.into_inner();
         let account_id = AccountId::new(req.account_id).map_err(ServiceError::from)?;
+        tracing::Span::current().record("account_id", account_id.value());
 
         // try cache first (O(1))
-        let balance = self.cache.get(account_id).ok_or_else(|| {
-            ServiceError::AccountNotFound {
+        let balance = self
+            .cache
+            .get(account_id)
+            .ok_or_else(|| ServiceError::AccountNotFound {
                 account_id: account_id.value(),
-            }
-        })?;
+            })?;
 
         Ok(Response::new(GetBalanceResponse {
             balance: Some(ProtoBalance {
@@ -131,7 +140,7 @@ impl LedgerServiceTrait for LedgerService {
         }))
     }
 
-    #[tracing::instrument(skip(self, request), fields(method = "Authorize"))]
+    #[tracing::instrument(skip(self, request), fields(method = "Authorize", idempotency_key))]
     async fn authorize(
         &self,
         request: Request<AuthorizeRequest>,
@@ -142,6 +151,7 @@ impl LedgerServiceTrait for LedgerService {
         if req.idempotency_key.is_empty() {
             return Err(ServiceError::InvalidArgument("idempotency_key is required".into()).into());
         }
+        tracing::Span::current().record("idempotency_key", &req.idempotency_key);
 
         // parse metadata
         let metadata: serde_json::Value = if req.metadata.is_empty() {
@@ -173,7 +183,9 @@ impl LedgerServiceTrait for LedgerService {
                 .await
                 .map_err(ServiceError::from)?;
 
-            tx.commit().await.map_err(|e| ServiceError::Internal(e.to_string()))?;
+            tx.commit()
+                .await
+                .map_err(|e| ServiceError::Internal(e.to_string()))?;
 
             counter!("fides_idempotent_hits_total", "method" => "authorize").increment(1);
             return Ok(Response::new(AuthorizeResponse {
@@ -290,10 +302,14 @@ impl LedgerServiceTrait for LedgerService {
             entries.push(entry);
 
             // compute pending delta (pending entries affect pending balance)
-            let delta = compute_balance_delta(account.normal_balance(), leg.entry_type(), leg.amount());
+            let delta =
+                compute_balance_delta(account.normal_balance(), leg.entry_type(), leg.amount());
 
             // accumulate balance updates per account
-            if let Some(update) = balance_updates.iter_mut().find(|(id, _, _)| *id == leg.account_id()) {
+            if let Some(update) = balance_updates
+                .iter_mut()
+                .find(|(id, _, _)| *id == leg.account_id())
+            {
                 update.2 += delta; // pending delta
             } else {
                 balance_updates.push((leg.account_id(), 0, delta)); // (id, posted_delta, pending_delta)
@@ -305,16 +321,25 @@ impl LedgerServiceTrait for LedgerService {
             let account = accounts.iter().find(|a| a.id() == *account_id).unwrap();
 
             self.storage
-                .update_account_balance(&mut tx, *account_id, account.version(), *posted_delta, *pending_delta)
+                .update_account_balance(
+                    &mut tx,
+                    *account_id,
+                    account.version(),
+                    *posted_delta,
+                    *pending_delta,
+                )
                 .await
                 .map_err(ServiceError::from)?;
         }
 
-        tx.commit().await.map_err(|e| ServiceError::Internal(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| ServiceError::Internal(e.to_string()))?;
 
         // update cache after commit
         for (account_id, posted_delta, pending_delta) in balance_updates {
-            self.cache.apply_delta(account_id, posted_delta, pending_delta);
+            self.cache
+                .apply_delta(account_id, posted_delta, pending_delta);
         }
 
         counter!("fides_transactions_total", "status" => "pending").increment(1);
@@ -335,13 +360,14 @@ impl LedgerServiceTrait for LedgerService {
         }))
     }
 
-    #[tracing::instrument(skip(self, request), fields(method = "Capture"))]
+    #[tracing::instrument(skip(self, request), fields(method = "Capture", transaction_id))]
     async fn capture(
         &self,
         request: Request<CaptureRequest>,
     ) -> Result<Response<CaptureResponse>, Status> {
         let req = request.into_inner();
         let transaction_id = TransactionId::new(req.transaction_id).map_err(ServiceError::from)?;
+        tracing::Span::current().record("transaction_id", transaction_id.value());
 
         let now = now_millis();
 
@@ -359,7 +385,9 @@ impl LedgerServiceTrait for LedgerService {
 
         // idempotency: already captured = success
         if transaction.status() == TransactionStatus::Posted {
-            tx.commit().await.map_err(|e| ServiceError::Internal(e.to_string()))?;
+            tx.commit()
+                .await
+                .map_err(|e| ServiceError::Internal(e.to_string()))?;
             counter!("fides_idempotent_hits_total", "method" => "capture").increment(1);
             return Ok(Response::new(CaptureResponse {
                 transaction: Some(transaction_to_proto(&transaction)),
@@ -410,11 +438,15 @@ impl LedgerServiceTrait for LedgerService {
                 .find(|a| a.id() == entry.account_id())
                 .unwrap();
 
-            let delta = compute_balance_delta(account.normal_balance(), entry.entry_type(), entry.amount());
+            let delta =
+                compute_balance_delta(account.normal_balance(), entry.entry_type(), entry.amount());
 
-            if let Some(update) = balance_updates.iter_mut().find(|(id, _, _)| *id == entry.account_id()) {
-                update.1 += delta;  // add to posted
-                update.2 -= delta;  // remove from pending
+            if let Some(update) = balance_updates
+                .iter_mut()
+                .find(|(id, _, _)| *id == entry.account_id())
+            {
+                update.1 += delta; // add to posted
+                update.2 -= delta; // remove from pending
             } else {
                 balance_updates.push((entry.account_id(), delta, -delta));
             }
@@ -422,7 +454,12 @@ impl LedgerServiceTrait for LedgerService {
 
         // update transaction status
         self.storage
-            .update_transaction_status(&mut tx, transaction_id, TransactionStatus::Posted, Some(now))
+            .update_transaction_status(
+                &mut tx,
+                transaction_id,
+                TransactionStatus::Posted,
+                Some(now),
+            )
             .await
             .map_err(ServiceError::from)?;
 
@@ -437,16 +474,25 @@ impl LedgerServiceTrait for LedgerService {
             let account = accounts.iter().find(|a| a.id() == *account_id).unwrap();
 
             self.storage
-                .update_account_balance(&mut tx, *account_id, account.version(), *posted_delta, *pending_delta)
+                .update_account_balance(
+                    &mut tx,
+                    *account_id,
+                    account.version(),
+                    *posted_delta,
+                    *pending_delta,
+                )
                 .await
                 .map_err(ServiceError::from)?;
         }
 
-        tx.commit().await.map_err(|e| ServiceError::Internal(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| ServiceError::Internal(e.to_string()))?;
 
         // update cache after commit
         for (account_id, posted_delta, pending_delta) in balance_updates {
-            self.cache.apply_delta(account_id, posted_delta, pending_delta);
+            self.cache
+                .apply_delta(account_id, posted_delta, pending_delta);
         }
 
         counter!("fides_transactions_total", "status" => "posted").increment(1);
@@ -466,13 +512,11 @@ impl LedgerServiceTrait for LedgerService {
         }))
     }
 
-    #[tracing::instrument(skip(self, request), fields(method = "Void"))]
-    async fn void(
-        &self,
-        request: Request<VoidRequest>,
-    ) -> Result<Response<VoidResponse>, Status> {
+    #[tracing::instrument(skip(self, request), fields(method = "Void", transaction_id))]
+    async fn void(&self, request: Request<VoidRequest>) -> Result<Response<VoidResponse>, Status> {
         let req = request.into_inner();
         let transaction_id = TransactionId::new(req.transaction_id).map_err(ServiceError::from)?;
+        tracing::Span::current().record("transaction_id", transaction_id.value());
 
         let mut tx = self.storage.begin().await.map_err(ServiceError::from)?;
 
@@ -488,7 +532,9 @@ impl LedgerServiceTrait for LedgerService {
 
         // idempotency: already voided = success
         if transaction.status() == TransactionStatus::Voided {
-            tx.commit().await.map_err(|e| ServiceError::Internal(e.to_string()))?;
+            tx.commit()
+                .await
+                .map_err(|e| ServiceError::Internal(e.to_string()))?;
             counter!("fides_idempotent_hits_total", "method" => "void").increment(1);
             return Ok(Response::new(VoidResponse {
                 transaction: Some(transaction_to_proto(&transaction)),
@@ -539,10 +585,14 @@ impl LedgerServiceTrait for LedgerService {
                 .find(|a| a.id() == entry.account_id())
                 .unwrap();
 
-            let delta = compute_balance_delta(account.normal_balance(), entry.entry_type(), entry.amount());
+            let delta =
+                compute_balance_delta(account.normal_balance(), entry.entry_type(), entry.amount());
 
-            if let Some(update) = balance_updates.iter_mut().find(|(id, _, _)| *id == entry.account_id()) {
-                update.2 -= delta;  // remove from pending
+            if let Some(update) = balance_updates
+                .iter_mut()
+                .find(|(id, _, _)| *id == entry.account_id())
+            {
+                update.2 -= delta; // remove from pending
             } else {
                 balance_updates.push((entry.account_id(), 0, -delta));
             }
@@ -565,16 +615,25 @@ impl LedgerServiceTrait for LedgerService {
             let account = accounts.iter().find(|a| a.id() == *account_id).unwrap();
 
             self.storage
-                .update_account_balance(&mut tx, *account_id, account.version(), *posted_delta, *pending_delta)
+                .update_account_balance(
+                    &mut tx,
+                    *account_id,
+                    account.version(),
+                    *posted_delta,
+                    *pending_delta,
+                )
                 .await
                 .map_err(ServiceError::from)?;
         }
 
-        tx.commit().await.map_err(|e| ServiceError::Internal(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| ServiceError::Internal(e.to_string()))?;
 
         // update cache after commit
         for (account_id, posted_delta, pending_delta) in balance_updates {
-            self.cache.apply_delta(account_id, posted_delta, pending_delta);
+            self.cache
+                .apply_delta(account_id, posted_delta, pending_delta);
         }
 
         counter!("fides_transactions_total", "status" => "voided").increment(1);
@@ -596,13 +655,14 @@ impl LedgerServiceTrait for LedgerService {
 
     type GetEntriesStream = ReceiverStream<Result<ProtoEntry, Status>>;
 
-    #[tracing::instrument(skip(self, request), fields(method = "GetEntries"))]
+    #[tracing::instrument(skip(self, request), fields(method = "GetEntries", account_id))]
     async fn get_entries(
         &self,
         request: Request<GetEntriesRequest>,
     ) -> Result<Response<Self::GetEntriesStream>, Status> {
         let req = request.into_inner();
         let account_id = AccountId::new(req.account_id).map_err(ServiceError::from)?;
+        tracing::Span::current().record("account_id", account_id.value());
 
         let mut tx = self.storage.begin().await.map_err(ServiceError::from)?;
 
@@ -622,7 +682,9 @@ impl LedgerServiceTrait for LedgerService {
             .await
             .map_err(ServiceError::from)?;
 
-        tx.commit().await.map_err(|e| ServiceError::Internal(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| ServiceError::Internal(e.to_string()))?;
 
         let (sender, receiver) = mpsc::channel(32);
 

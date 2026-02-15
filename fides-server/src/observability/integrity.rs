@@ -137,7 +137,17 @@ impl IntegrityChecker {
             Ok(rows) => {
                 let mut mismatches = 0u64;
 
-                for (id, account_type, mat_posted, mat_pending, posted_debits, posted_credits, pending_debits, pending_credits) in &rows {
+                for (
+                    id,
+                    account_type,
+                    mat_posted,
+                    mat_pending,
+                    posted_debits,
+                    posted_credits,
+                    pending_debits,
+                    pending_credits,
+                ) in &rows
+                {
                     let debit_normal = is_debit_normal(*account_type);
 
                     let expected_posted = if debit_normal {
@@ -170,7 +180,11 @@ impl IntegrityChecker {
                 if mismatches == 0 {
                     tracing::debug!(accounts = rows.len(), "account balance check passed");
                 } else {
-                    tracing::error!(mismatches, accounts = rows.len(), "account balance mismatches detected");
+                    tracing::error!(
+                        mismatches,
+                        accounts = rows.len(),
+                        "account balance mismatches detected"
+                    );
                 }
             }
             Err(e) => {

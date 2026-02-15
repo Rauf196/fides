@@ -18,9 +18,9 @@ pub enum EntryType {
 /// lifecycle state of an entry
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EntryStatus {
-    Pending,  // authorized but not settled
-    Posted,   // settled
-    Voided,   // cancelled
+    Pending, // authorized but not settled
+    Posted,  // settled
+    Voided,  // cancelled
 }
 
 /// a single leg of a double-entry transaction (immutable once created)
@@ -234,13 +234,21 @@ mod tests {
                 EntryStatus::Posted,
                 1234567890,
             );
-            assert!(result.is_ok(), "entry_type {:?} should be valid", entry_type);
+            assert!(
+                result.is_ok(),
+                "entry_type {:?} should be valid",
+                entry_type
+            );
         }
     }
 
     #[test]
     fn accepts_all_entry_statuses() {
-        for status in [EntryStatus::Pending, EntryStatus::Posted, EntryStatus::Voided] {
+        for status in [
+            EntryStatus::Pending,
+            EntryStatus::Posted,
+            EntryStatus::Voided,
+        ] {
             let result = Entry::new(
                 EntryId::new(1).unwrap(),
                 TransactionId::new(1).unwrap(),

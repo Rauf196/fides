@@ -27,8 +27,13 @@ pub struct AccountBalance {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValidationError {
-    InsufficientLegs { count: usize },
-    UnbalancedTransaction { total_debits: i64, total_credits: i64 },
+    InsufficientLegs {
+        count: usize,
+    },
+    UnbalancedTransaction {
+        total_debits: i64,
+        total_credits: i64,
+    },
     SumOverflow,
     BalanceOverflow,
 }
@@ -482,7 +487,7 @@ mod tests {
             entry(3, 1, EntryType::Credit, 150, EntryStatus::Pending),
         ];
         let balance = compute_account_balance(NormalBalance::Debit, &entries).unwrap();
-        assert_eq!(balance.posted(), 800);   // 1000 - 200
+        assert_eq!(balance.posted(), 800); // 1000 - 200
         assert_eq!(balance.pending(), -150); // 0 - 150 (pending credit on debit-normal)
         assert_eq!(balance.available(), 950); // 800 - (-150) = 950
     }
@@ -562,9 +567,13 @@ mod tests {
             let balance = compute_account_balance(normal, &entries).unwrap();
 
             assert_eq!(
-                delta, balance.posted(),
+                delta,
+                balance.posted(),
                 "delta {} should match posted balance {} for {:?}/{:?}",
-                delta, balance.posted(), normal, entry_type
+                delta,
+                balance.posted(),
+                normal,
+                entry_type
             );
         }
     }
@@ -597,7 +606,13 @@ mod tests {
                 id += 1;
             }
             if pend_c > 0 {
-                entries.push(entry(id, 1, EntryType::Credit, pend_c, EntryStatus::Pending));
+                entries.push(entry(
+                    id,
+                    1,
+                    EntryType::Credit,
+                    pend_c,
+                    EntryStatus::Pending,
+                ));
             }
 
             let balance = compute_account_balance(normal, &entries).unwrap();

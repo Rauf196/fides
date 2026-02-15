@@ -37,7 +37,10 @@ pub struct ServerHandle {
 
 impl ServerHandle {
     /// production path: wait for the signal, then graceful shutdown
-    pub async fn run(self, signal: impl std::future::Future<Output = ()> + Send + 'static) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn run(
+        self,
+        signal: impl std::future::Future<Output = ()> + Send + 'static,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         signal.await;
         tracing::info!("shutdown signal received, draining requests");
         self.drain().await
@@ -152,9 +155,8 @@ pub async fn serve(
     });
 
     // spawn integrity checker
-    let integrity_interval = Duration::from_secs(
-        config.observability.integrity_check_interval_secs,
-    );
+    let integrity_interval =
+        Duration::from_secs(config.observability.integrity_check_interval_secs);
     let checker = IntegrityChecker::new(pool.clone(), cache, integrity_interval);
     let integrity_shutdown_rx = shutdown_rx.clone();
     tokio::spawn(async move {

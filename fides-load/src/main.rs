@@ -10,9 +10,7 @@ use tonic::Code;
 use uuid::Uuid;
 
 use fides_proto::ledger_service_client::LedgerServiceClient;
-use fides_proto::{
-    AuthorizeRequest, CaptureRequest, CreateAccountRequest, TransferLeg,
-};
+use fides_proto::{AuthorizeRequest, CaptureRequest, CreateAccountRequest, TransferLeg};
 
 #[derive(Parser)]
 #[command(name = "fides-load", about = "load tester for fides ledger")]
@@ -69,7 +67,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    eprintln!("creating {} accounts ({} asset + {} equity)...", args.accounts, half, half);
+    eprintln!(
+        "creating {} accounts ({} asset + {} equity)...",
+        args.accounts, half, half
+    );
     let mut assets = Vec::with_capacity(half);
     let mut equities = Vec::with_capacity(half);
 
@@ -123,7 +124,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .into_inner();
 
         let tx_id = resp.transaction.unwrap().id;
-        client.capture(CaptureRequest { transaction_id: tx_id }).await?;
+        client
+            .capture(CaptureRequest {
+                transaction_id: tx_id,
+            })
+            .await?;
     }
 
     eprintln!("setup complete. starting load test...\n");
@@ -185,7 +190,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         // capture
                         match worker_client
-                            .capture(CaptureRequest { transaction_id: tx_id })
+                            .capture(CaptureRequest {
+                                transaction_id: tx_id,
+                            })
                             .await
                         {
                             Ok(_) => {

@@ -36,16 +36,16 @@ pub enum ServiceError {
     DuplicateTransaction { idempotency_key: String },
 
     /// unbalanced transaction (debits != credits)
-    UnbalancedTransaction { total_debits: i64, total_credits: i64 },
+    UnbalancedTransaction {
+        total_debits: i64,
+        total_credits: i64,
+    },
 
     /// invalid request data
     InvalidArgument(String),
 
     /// optimistic locking conflict - retry
-    VersionConflict {
-        entity: &'static str,
-        id: i64,
-    },
+    VersionConflict { entity: &'static str, id: i64 },
 
     /// internal error (db failure, data corruption)
     Internal(String),
@@ -60,14 +60,22 @@ impl fmt::Display for ServiceError {
             ServiceError::TransactionNotFound { transaction_id } => {
                 write!(f, "transaction {} not found", transaction_id)
             }
-            ServiceError::InsufficientFunds { account_id, available, requested } => {
+            ServiceError::InsufficientFunds {
+                account_id,
+                available,
+                requested,
+            } => {
                 write!(
                     f,
                     "insufficient funds on account {}: available {}, requested {}",
                     account_id, available, requested
                 )
             }
-            ServiceError::InvalidTransactionState { transaction_id, current, attempted } => {
+            ServiceError::InvalidTransactionState {
+                transaction_id,
+                current,
+                attempted,
+            } => {
                 write!(
                     f,
                     "cannot {} transaction {}: current state {:?}",
@@ -77,7 +85,10 @@ impl fmt::Display for ServiceError {
             ServiceError::DuplicateTransaction { idempotency_key } => {
                 write!(f, "duplicate transaction with key {}", idempotency_key)
             }
-            ServiceError::UnbalancedTransaction { total_debits, total_credits } => {
+            ServiceError::UnbalancedTransaction {
+                total_debits,
+                total_credits,
+            } => {
                 write!(
                     f,
                     "unbalanced transaction: debits {} != credits {}",
@@ -103,9 +114,9 @@ impl From<StorageError> for ServiceError {
             StorageError::VersionConflict { entity, id, .. } => {
                 ServiceError::VersionConflict { entity, id }
             }
-            StorageError::DuplicateKey(key) => {
-                ServiceError::DuplicateTransaction { idempotency_key: key }
-            }
+            StorageError::DuplicateKey(key) => ServiceError::DuplicateTransaction {
+                idempotency_key: key,
+            },
             StorageError::DataCorruption(msg) => ServiceError::Internal(msg),
             StorageError::Database(e) => ServiceError::Internal(e.to_string()),
         }
@@ -115,15 +126,17 @@ impl From<StorageError> for ServiceError {
 impl From<ValidationError> for ServiceError {
     fn from(e: ValidationError) -> Self {
         match e {
-            ValidationError::InsufficientLegs { count } => {
-                ServiceError::InvalidArgument(format!(
-                    "transaction requires at least 2 legs, got {}",
-                    count
-                ))
-            }
-            ValidationError::UnbalancedTransaction { total_debits, total_credits } => {
-                ServiceError::UnbalancedTransaction { total_debits, total_credits }
-            }
+            ValidationError::InsufficientLegs { count } => ServiceError::InvalidArgument(format!(
+                "transaction requires at least 2 legs, got {}",
+                count
+            )),
+            ValidationError::UnbalancedTransaction {
+                total_debits,
+                total_credits,
+            } => ServiceError::UnbalancedTransaction {
+                total_debits,
+                total_credits,
+            },
             ValidationError::SumOverflow | ValidationError::BalanceOverflow => {
                 ServiceError::Internal(e.to_string())
             }
@@ -181,11 +194,11 @@ impl From<ServiceError> for tonic::Status {
             ServiceError::UnbalancedTransaction { .. } | ServiceError::InvalidArgument(_) => {
                 tonic::Status::invalid_argument(e.to_string())
             }
-            ServiceError::VersionConflict { .. } => {
-                tonic::Status::aborted(e.to_string())
-            }
-            ServiceError::Internal(_) => {
-                tonic::Status::internal(e.to_string())
+            ServiceError::VersionConflict { .. } => tonic::Status::aborted(e.to_string()),
+            ServiceError::Internal(ref msg) => {
+                // log full details server-side, return generic message to client
+                tracing::error!(error = %msg, "internal error");
+                tonic::Status::internal("internal error")
             }
         }
     }

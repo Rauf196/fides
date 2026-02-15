@@ -49,6 +49,9 @@ async fn ready(State(state): State<HealthState>) -> StatusCode {
         .await
     {
         Ok(_) => StatusCode::OK,
-        Err(_) => StatusCode::SERVICE_UNAVAILABLE,
+        Err(e) => {
+            tracing::warn!(error = %e, "readiness check failed");
+            StatusCode::SERVICE_UNAVAILABLE
+        }
     }
 }

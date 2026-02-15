@@ -107,11 +107,15 @@ fn bench_validate_transaction_balance(c: &mut Criterion) {
 
     for n in [2, 4, 8] {
         let legs = make_legs(n);
-        group.bench_with_input(BenchmarkId::from_parameter(format!("{n}_legs")), &legs, |b, legs| {
-            b.iter(|| {
-                let _ = black_box(validate_transaction_balance(black_box(legs)));
-            })
-        });
+        group.bench_with_input(
+            BenchmarkId::from_parameter(format!("{n}_legs")),
+            &legs,
+            |b, legs| {
+                b.iter(|| {
+                    let _ = black_box(validate_transaction_balance(black_box(legs)));
+                })
+            },
+        );
     }
     group.finish();
 }

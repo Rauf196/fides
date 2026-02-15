@@ -153,12 +153,10 @@ impl PostgresStorage {
 
         if result.rows_affected() == 0 {
             // fetch current version to provide useful error
-            let current = sqlx::query_scalar!(
-                "SELECT version FROM accounts WHERE id = $1",
-                id.value()
-            )
-            .fetch_optional(&mut **tx)
-            .await?;
+            let current =
+                sqlx::query_scalar!("SELECT version FROM accounts WHERE id = $1", id.value())
+                    .fetch_optional(&mut **tx)
+                    .await?;
 
             match current {
                 Some(v) => Err(StorageError::VersionConflict {
@@ -478,12 +476,10 @@ impl PostgresStorage {
 
         if result.rows_affected() == 0 {
             // fetch current version to provide useful error
-            let current = sqlx::query_scalar!(
-                "SELECT version FROM accounts WHERE id = $1",
-                id.value()
-            )
-            .fetch_optional(&mut **tx)
-            .await?;
+            let current =
+                sqlx::query_scalar!("SELECT version FROM accounts WHERE id = $1", id.value())
+                    .fetch_optional(&mut **tx)
+                    .await?;
 
             match current {
                 Some(v) => Err(StorageError::VersionConflict {
@@ -504,15 +500,19 @@ impl PostgresStorage {
 
     /// load all account balances for cache rehydration
     pub async fn load_all_balances(&self) -> Result<Vec<(AccountId, i64, i64)>, StorageError> {
-        let rows = sqlx::query!(
-            "SELECT id, posted_balance, pending_balance FROM accounts"
-        )
-        .fetch_all(&self.pool)
-        .await?;
+        let rows = sqlx::query!("SELECT id, posted_balance, pending_balance FROM accounts")
+            .fetch_all(&self.pool)
+            .await?;
 
         Ok(rows
             .into_iter()
-            .map(|r| (AccountId::from_raw(r.id), r.posted_balance, r.pending_balance))
+            .map(|r| {
+                (
+                    AccountId::from_raw(r.id),
+                    r.posted_balance,
+                    r.pending_balance,
+                )
+            })
             .collect())
     }
 }

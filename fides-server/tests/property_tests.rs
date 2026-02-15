@@ -242,8 +242,8 @@ fn partition(total: i64, n: usize) -> Vec<i64> {
 
     let mut parts = vec![base; n];
     // distribute remainder across first `remainder` parts
-    for i in 0..remainder as usize {
-        parts[i] += 1;
+    for part in parts.iter_mut().take(remainder as usize) {
+        *part += 1;
     }
 
     // ensure no zero amounts (shift from larger to smaller if needed)

@@ -31,7 +31,12 @@ impl fmt::Display for StorageError {
         match self {
             StorageError::Database(e) => write!(f, "database error: {}", e),
             StorageError::DataCorruption(msg) => write!(f, "data corruption: {}", msg),
-            StorageError::VersionConflict { entity, id, expected, actual } => {
+            StorageError::VersionConflict {
+                entity,
+                id,
+                expected,
+                actual,
+            } => {
                 write!(
                     f,
                     "version conflict on {} {}: expected {}, got {}",
@@ -57,9 +62,19 @@ impl From<sqlx::Error> for StorageError {
         // check for unique constraint violation (duplicate key)
         if let sqlx::Error::Database(ref db_err) = e {
             if db_err.is_unique_violation() {
-                // extract key if possible, otherwise use generic message
-                let msg = db_err.message().to_string();
-                return StorageError::DuplicateKey(msg);
+                // extract the actual duplicate value from PostgreSQL detail.
+                // detail format: "Key (column)=(value) already exists."
+                let key = db_err
+                    .try_downcast_ref::<sqlx::postgres::PgDatabaseError>()
+                    .and_then(|pg| pg.detail())
+                    .and_then(|d: &str| {
+                        let start = d.find(")=(")?;
+                        let rest = &d[start + 3..];
+                        let end = rest.find(')')?;
+                        Some(rest[..end].to_string())
+                    })
+                    .unwrap_or_else(|| "unknown".to_string());
+                return StorageError::DuplicateKey(key);
             }
         }
         StorageError::Database(e)

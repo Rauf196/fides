@@ -48,17 +48,26 @@ impl TestServer {
             },
         };
 
-        let pool = server::connect_db(&config).await.expect("failed to connect db");
-        server::run_migrations(&pool).await.expect("failed to run migrations");
+        let pool = server::connect_db(&config)
+            .await
+            .expect("failed to connect db");
+        server::run_migrations(&pool)
+            .await
+            .expect("failed to run migrations");
 
-        let handle = server::serve(pool, &config).await.expect("failed to start server");
+        let handle = server::serve(pool, &config)
+            .await
+            .expect("failed to start server");
         let grpc_addr = handle.grpc_addr;
         let http_addr = handle.http_addr;
 
         // keep the handle alive for the lifetime of the test process
         Box::leak(Box::new(handle));
 
-        TestServer { grpc_addr, http_addr }
+        TestServer {
+            grpc_addr,
+            http_addr,
+        }
     }
 
     pub async fn client(&self) -> LedgerServiceClient<Channel> {

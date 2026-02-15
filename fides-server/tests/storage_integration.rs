@@ -722,7 +722,11 @@ async fn update_account_balance_increments_version() {
         .await
         .unwrap();
 
-    let account = storage.get_account(&mut tx, account_id).await.unwrap().unwrap();
+    let account = storage
+        .get_account(&mut tx, account_id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(account.version(), 1);
 
     // version 1 -> 2
@@ -731,7 +735,11 @@ async fn update_account_balance_increments_version() {
         .await
         .unwrap();
 
-    let account = storage.get_account(&mut tx, account_id).await.unwrap().unwrap();
+    let account = storage
+        .get_account(&mut tx, account_id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(account.version(), 2);
 }
 
@@ -845,7 +853,11 @@ async fn balance_reconciliation_matches_computed() {
         .await
         .unwrap();
 
-    let account = storage.get_account(&mut tx, account_id).await.unwrap().unwrap();
+    let account = storage
+        .get_account(&mut tx, account_id)
+        .await
+        .unwrap()
+        .unwrap();
     let normal_balance = account.normal_balance();
 
     // create a transaction
@@ -887,7 +899,8 @@ async fn balance_reconciliation_matches_computed() {
             .unwrap();
 
         // track expected deltas
-        let delta = compute_balance_delta(normal_balance, entry_type, Amount::new(amount_val).unwrap());
+        let delta =
+            compute_balance_delta(normal_balance, entry_type, Amount::new(amount_val).unwrap());
         match status {
             EntryStatus::Posted => expected_posted_delta += delta,
             EntryStatus::Pending => expected_pending_delta += delta,
@@ -897,7 +910,13 @@ async fn balance_reconciliation_matches_computed() {
 
     // update materialized balance
     storage
-        .update_account_balance(&mut tx, account_id, 0, expected_posted_delta, expected_pending_delta)
+        .update_account_balance(
+            &mut tx,
+            account_id,
+            0,
+            expected_posted_delta,
+            expected_pending_delta,
+        )
         .await
         .unwrap();
 
@@ -914,18 +933,24 @@ async fn balance_reconciliation_matches_computed() {
         .await
         .unwrap();
 
-    let computed = fides_server::domain::validation::compute_account_balance(normal_balance, &entries).unwrap();
+    let computed =
+        fides_server::domain::validation::compute_account_balance(normal_balance, &entries)
+            .unwrap();
 
     // verify they match
     assert_eq!(
-        posted, computed.posted(),
+        posted,
+        computed.posted(),
         "materialized posted {} should match computed {}",
-        posted, computed.posted()
+        posted,
+        computed.posted()
     );
     assert_eq!(
-        pending, computed.pending(),
+        pending,
+        computed.pending(),
         "materialized pending {} should match computed {}",
-        pending, computed.pending()
+        pending,
+        computed.pending()
     );
 }
 
@@ -946,8 +971,16 @@ async fn balance_with_authorize_capture_void_workflow() {
         .await
         .unwrap();
 
-    let asset = storage.get_account(&mut tx, asset_id).await.unwrap().unwrap();
-    let liability = storage.get_account(&mut tx, liability_id).await.unwrap().unwrap();
+    let asset = storage
+        .get_account(&mut tx, asset_id)
+        .await
+        .unwrap()
+        .unwrap();
+    let liability = storage
+        .get_account(&mut tx, liability_id)
+        .await
+        .unwrap()
+        .unwrap();
 
     // authorize: create pending transaction
     let txn_id = storage
@@ -966,45 +999,101 @@ async fn balance_with_authorize_capture_void_workflow() {
     let amount = Amount::new(10000).unwrap(); // $100.00
 
     storage
-        .create_entry(&mut tx, txn_id, asset_id, EntryType::Debit, amount, EntryStatus::Pending, now_millis())
+        .create_entry(
+            &mut tx,
+            txn_id,
+            asset_id,
+            EntryType::Debit,
+            amount,
+            EntryStatus::Pending,
+            now_millis(),
+        )
         .await
         .unwrap();
 
     storage
-        .create_entry(&mut tx, txn_id, liability_id, EntryType::Credit, amount, EntryStatus::Pending, now_millis())
+        .create_entry(
+            &mut tx,
+            txn_id,
+            liability_id,
+            EntryType::Credit,
+            amount,
+            EntryStatus::Pending,
+            now_millis(),
+        )
         .await
         .unwrap();
 
     // update pending balances
     let asset_delta = compute_balance_delta(asset.normal_balance(), EntryType::Debit, amount);
-    let liability_delta = compute_balance_delta(liability.normal_balance(), EntryType::Credit, amount);
+    let liability_delta =
+        compute_balance_delta(liability.normal_balance(), EntryType::Credit, amount);
 
-    storage.update_account_balance(&mut tx, asset_id, 0, 0, asset_delta).await.unwrap();
-    storage.update_account_balance(&mut tx, liability_id, 0, 0, liability_delta).await.unwrap();
+    storage
+        .update_account_balance(&mut tx, asset_id, 0, 0, asset_delta)
+        .await
+        .unwrap();
+    storage
+        .update_account_balance(&mut tx, liability_id, 0, 0, liability_delta)
+        .await
+        .unwrap();
 
     // verify pending state
-    let (asset_posted, asset_pending) = storage.get_account_balance(&mut tx, asset_id).await.unwrap().unwrap();
+    let (asset_posted, asset_pending) = storage
+        .get_account_balance(&mut tx, asset_id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(asset_posted, 0);
     assert_eq!(asset_pending, 10000); // pending debit on debit-normal = +pending
 
-    let (liability_posted, liability_pending) = storage.get_account_balance(&mut tx, liability_id).await.unwrap().unwrap();
+    let (liability_posted, liability_pending) = storage
+        .get_account_balance(&mut tx, liability_id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(liability_posted, 0);
     assert_eq!(liability_pending, 10000); // pending credit on credit-normal = +pending
 
     // capture: move from pending to posted
-    storage.update_entry_status_by_transaction(&mut tx, txn_id, EntryStatus::Posted).await.unwrap();
-    storage.update_transaction_status(&mut tx, txn_id, TransactionStatus::Posted, Some(now_millis())).await.unwrap();
+    storage
+        .update_entry_status_by_transaction(&mut tx, txn_id, EntryStatus::Posted)
+        .await
+        .unwrap();
+    storage
+        .update_transaction_status(
+            &mut tx,
+            txn_id,
+            TransactionStatus::Posted,
+            Some(now_millis()),
+        )
+        .await
+        .unwrap();
 
     // balance update: +posted, -pending (delta moves from pending to posted)
-    storage.update_account_balance(&mut tx, asset_id, 1, asset_delta, -asset_delta).await.unwrap();
-    storage.update_account_balance(&mut tx, liability_id, 1, liability_delta, -liability_delta).await.unwrap();
+    storage
+        .update_account_balance(&mut tx, asset_id, 1, asset_delta, -asset_delta)
+        .await
+        .unwrap();
+    storage
+        .update_account_balance(&mut tx, liability_id, 1, liability_delta, -liability_delta)
+        .await
+        .unwrap();
 
     // verify posted state
-    let (asset_posted, asset_pending) = storage.get_account_balance(&mut tx, asset_id).await.unwrap().unwrap();
+    let (asset_posted, asset_pending) = storage
+        .get_account_balance(&mut tx, asset_id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(asset_posted, 10000);
     assert_eq!(asset_pending, 0);
 
-    let (liability_posted, liability_pending) = storage.get_account_balance(&mut tx, liability_id).await.unwrap().unwrap();
+    let (liability_posted, liability_pending) = storage
+        .get_account_balance(&mut tx, liability_id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(liability_posted, 10000);
     assert_eq!(liability_pending, 0);
 }

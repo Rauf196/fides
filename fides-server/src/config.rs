@@ -66,15 +66,27 @@ impl AppConfig {
             // hardcoded defaults
             .set_default("server.grpc_port", DEFAULT_GRPC_PORT)?
             .set_default("server.http_port", DEFAULT_HTTP_PORT)?
-            .set_default("server.shutdown_timeout_secs", DEFAULT_SHUTDOWN_TIMEOUT_SECS as i64)?
+            .set_default(
+                "server.shutdown_timeout_secs",
+                DEFAULT_SHUTDOWN_TIMEOUT_SECS as i64,
+            )?
             .set_default("database.url", "")?
             .set_default("database.max_connections", DEFAULT_MAX_CONNECTIONS as i64)?
             .set_default("database.min_connections", DEFAULT_MIN_CONNECTIONS as i64)?
-            .set_default("database.acquire_timeout_secs", DEFAULT_ACQUIRE_TIMEOUT_SECS as i64)?
-            .set_default("database.idle_timeout_secs", DEFAULT_IDLE_TIMEOUT_SECS as i64)?
+            .set_default(
+                "database.acquire_timeout_secs",
+                DEFAULT_ACQUIRE_TIMEOUT_SECS as i64,
+            )?
+            .set_default(
+                "database.idle_timeout_secs",
+                DEFAULT_IDLE_TIMEOUT_SECS as i64,
+            )?
             .set_default("logging.level", DEFAULT_LOG_LEVEL)?
             .set_default("logging.format", DEFAULT_LOG_FORMAT)?
-            .set_default("observability.integrity_check_interval_secs", DEFAULT_INTEGRITY_CHECK_INTERVAL_SECS as i64)?;
+            .set_default(
+                "observability.integrity_check_interval_secs",
+                DEFAULT_INTEGRITY_CHECK_INTERVAL_SECS as i64,
+            )?;
 
         // config file: --config makes it required, otherwise optional config.toml
         match config_path {
@@ -82,8 +94,7 @@ impl AppConfig {
                 builder = builder.add_source(File::from(path.to_path_buf()).required(true));
             }
             None => {
-                builder = builder
-                    .add_source(File::new("config", FileFormat::Toml).required(false));
+                builder = builder.add_source(File::new("config", FileFormat::Toml).required(false));
             }
         }
 
@@ -106,9 +117,7 @@ impl AppConfig {
 
     fn validate(&self) -> Result<(), ConfigError> {
         if self.database.url.is_empty() {
-            return Err(ConfigError::Validation(
-                "database.url is required".into(),
-            ));
+            return Err(ConfigError::Validation("database.url is required".into()));
         }
 
         if self.server.grpc_port == self.server.http_port {
@@ -167,7 +176,7 @@ impl AppConfig {
 /// replace password in database url with ***
 ///
 /// handles `://user:password@host` pattern
-pub fn redact_db_url(url: &str) -> String {
+fn redact_db_url(url: &str) -> String {
     // find :// then look for : after user and @ after password
     let Some(scheme_end) = url.find("://") else {
         return url.to_string();
@@ -270,7 +279,9 @@ mod tests {
             c.server.http_port = 9090;
         });
         let err = config.validate().unwrap_err();
-        assert!(err.to_string().contains("grpc_port and http_port must differ"));
+        assert!(err
+            .to_string()
+            .contains("grpc_port and http_port must differ"));
     }
 
     #[test]
@@ -280,7 +291,9 @@ mod tests {
             c.database.max_connections = 10;
         });
         let err = config.validate().unwrap_err();
-        assert!(err.to_string().contains("min_connections (20) exceeds max_connections (10)"));
+        assert!(err
+            .to_string()
+            .contains("min_connections (20) exceeds max_connections (10)"));
     }
 
     #[test]
@@ -294,7 +307,9 @@ mod tests {
     fn validate_zero_shutdown_timeout() {
         let config = test_config(|c| c.server.shutdown_timeout_secs = 0);
         let err = config.validate().unwrap_err();
-        assert!(err.to_string().contains("shutdown_timeout_secs must be > 0"));
+        assert!(err
+            .to_string()
+            .contains("shutdown_timeout_secs must be > 0"));
     }
 
     #[test]
@@ -307,7 +322,9 @@ mod tests {
     fn validate_low_integrity_interval() {
         let config = test_config(|c| c.observability.integrity_check_interval_secs = 5);
         let err = config.validate().unwrap_err();
-        assert!(err.to_string().contains("integrity_check_interval_secs must be >= 10"));
+        assert!(err
+            .to_string()
+            .contains("integrity_check_interval_secs must be >= 10"));
     }
 
     fn test_config(modify: impl FnOnce(&mut AppConfig)) -> AppConfig {

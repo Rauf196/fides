@@ -179,7 +179,10 @@ mod tests {
     fn account_type_normal_balance() {
         assert_eq!(AccountType::Asset.normal_balance(), NormalBalance::Debit);
         assert_eq!(AccountType::Expense.normal_balance(), NormalBalance::Debit);
-        assert_eq!(AccountType::Liability.normal_balance(), NormalBalance::Credit);
+        assert_eq!(
+            AccountType::Liability.normal_balance(),
+            NormalBalance::Credit
+        );
         assert_eq!(AccountType::Equity.normal_balance(), NormalBalance::Credit);
         assert_eq!(AccountType::Revenue.normal_balance(), NormalBalance::Credit);
     }

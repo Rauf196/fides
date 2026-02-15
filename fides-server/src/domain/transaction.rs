@@ -8,10 +8,10 @@ pub struct TransactionId(i64);
 /// lifecycle state of a transaction
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TransactionStatus {
-    Pending,  // authorized, awaiting capture/void
-    Posted,   // captured, finalized
-    Voided,   // cancelled
-    Failed,   // rejected (validation failed, insufficient funds, etc.)
+    Pending, // authorized, awaiting capture/void
+    Posted,  // captured, finalized
+    Voided,  // cancelled
+    Failed,  // rejected (validation failed, insufficient funds, etc.)
 }
 
 /// groups entries that must balance (total debits = total credits)
@@ -20,9 +20,9 @@ pub struct Transaction {
     id: TransactionId,
     idempotency_key: String,
     status: TransactionStatus,
-    metadata: JsonValue,  // audit info: client_ip, merchant_id, correlation_id, etc.
+    metadata: JsonValue, // audit info: client_ip, merchant_id, correlation_id, etc.
     created_at: i64,
-    posted_at: i64,  // 0 if not yet posted
+    posted_at: i64, // 0 if not yet posted
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,7 +30,10 @@ pub enum TransactionError {
     InvalidId(i64),
     EmptyIdempotencyKey,
     InvalidTimestamp(i64),
-    InvalidPostedAt { status: TransactionStatus, posted_at: i64 },
+    InvalidPostedAt {
+        status: TransactionStatus,
+        posted_at: i64,
+    },
 }
 
 impl TransactionId {
@@ -53,7 +56,10 @@ impl TransactionId {
 impl TransactionStatus {
     /// returns true if this is a terminal state (no further transitions)
     pub fn is_terminal(self) -> bool {
-        matches!(self, TransactionStatus::Posted | TransactionStatus::Voided | TransactionStatus::Failed)
+        matches!(
+            self,
+            TransactionStatus::Posted | TransactionStatus::Voided | TransactionStatus::Failed
+        )
     }
 }
 
@@ -205,12 +211,15 @@ mod tests {
             TransactionStatus::Posted,
             test_metadata(),
             1234567890,
-            0,  // invalid: posted status requires posted_at > 0
+            0, // invalid: posted status requires posted_at > 0
         );
 
         assert!(matches!(
             result,
-            Err(TransactionError::InvalidPostedAt { status: TransactionStatus::Posted, .. })
+            Err(TransactionError::InvalidPostedAt {
+                status: TransactionStatus::Posted,
+                ..
+            })
         ));
     }
 
@@ -222,12 +231,15 @@ mod tests {
             TransactionStatus::Pending,
             test_metadata(),
             1234567890,
-            1234567890,  // invalid: pending shouldn't have posted_at
+            1234567890, // invalid: pending shouldn't have posted_at
         );
 
         assert!(matches!(
             result,
-            Err(TransactionError::InvalidPostedAt { status: TransactionStatus::Pending, .. })
+            Err(TransactionError::InvalidPostedAt {
+                status: TransactionStatus::Pending,
+                ..
+            })
         ));
     }
 
@@ -239,12 +251,15 @@ mod tests {
             TransactionStatus::Voided,
             test_metadata(),
             1234567890,
-            1234567890,  // invalid: voided shouldn't have posted_at
+            1234567890, // invalid: voided shouldn't have posted_at
         );
 
         assert!(matches!(
             result,
-            Err(TransactionError::InvalidPostedAt { status: TransactionStatus::Voided, .. })
+            Err(TransactionError::InvalidPostedAt {
+                status: TransactionStatus::Voided,
+                ..
+            })
         ));
     }
 
@@ -256,12 +271,15 @@ mod tests {
             TransactionStatus::Failed,
             test_metadata(),
             1234567890,
-            1234567890,  // invalid: failed shouldn't have posted_at
+            1234567890, // invalid: failed shouldn't have posted_at
         );
 
         assert!(matches!(
             result,
-            Err(TransactionError::InvalidPostedAt { status: TransactionStatus::Failed, .. })
+            Err(TransactionError::InvalidPostedAt {
+                status: TransactionStatus::Failed,
+                ..
+            })
         ));
     }
 
@@ -307,7 +325,7 @@ mod tests {
             TransactionStatus::Voided,
             test_metadata(),
             1234567890,
-            0,  // voided has no posted_at
+            0, // voided has no posted_at
         );
 
         assert!(result.is_ok());
@@ -324,7 +342,7 @@ mod tests {
             TransactionStatus::Failed,
             test_metadata(),
             1234567890,
-            0,  // failed has no posted_at
+            0, // failed has no posted_at
         );
 
         assert!(result.is_ok());

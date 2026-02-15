@@ -29,7 +29,10 @@ pub struct GrpcMetricsService<S> {
 
 impl<S, ReqBody, ResBody> tower_service::Service<Request<ReqBody>> for GrpcMetricsService<S>
 where
-    S: tower_service::Service<Request<ReqBody>, Response = Response<ResBody>> + Clone + Send + 'static,
+    S: tower_service::Service<Request<ReqBody>, Response = Response<ResBody>>
+        + Clone
+        + Send
+        + 'static,
     S::Future: Send + 'static,
     S::Error: Send + 'static,
     ReqBody: Send + 'static,
@@ -59,7 +62,8 @@ where
                 Err(_) => "error",
             };
 
-            counter!("fides_grpc_requests_total", "method" => method, "status" => status).increment(1);
+            counter!("fides_grpc_requests_total", "method" => method, "status" => status)
+                .increment(1);
             histogram!("fides_grpc_request_duration_seconds", "method" => method).record(duration);
 
             result
@@ -160,10 +164,7 @@ mod tests {
 
     #[test]
     fn extract_unknown_method() {
-        assert_eq!(
-            extract_method_name("/some.other.Service/FooBar"),
-            "unknown"
-        );
+        assert_eq!(extract_method_name("/some.other.Service/FooBar"), "unknown");
     }
 
     #[test]
