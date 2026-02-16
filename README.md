@@ -8,6 +8,12 @@
   <strong>Production-grade double-entry ledger in Rust</strong>
 </p>
 
+<p align="center">
+  <a href="https://github.com/Rauf196/fides/actions/workflows/ci.yml">
+    <img src="https://github.com/Rauf196/fides/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+</p>
+
 ---
 
 A correctness-first ledger designed to model real financial infrastructure behavior under concurrency and failure.

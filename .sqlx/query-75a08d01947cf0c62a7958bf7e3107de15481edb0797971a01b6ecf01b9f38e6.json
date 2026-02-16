@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT posted_balance, pending_balance FROM accounts WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "posted_balance",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "pending_balance",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "75a08d01947cf0c62a7958bf7e3107de15481edb0797971a01b6ecf01b9f38e6"
+}

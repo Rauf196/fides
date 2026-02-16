@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE accounts\n            SET posted_balance = posted_balance + $3,\n                pending_balance = pending_balance + $4,\n                version = version + 1\n            WHERE id = $1 AND version = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a24f1f763fb8e7dbc17a7927e80128b6b0632dcf6efde0c88d5523c2a638ea1d"
+}
