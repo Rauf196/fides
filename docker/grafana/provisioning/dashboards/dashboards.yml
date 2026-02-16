@@ -1,0 +1,7 @@
+apiVersion: 1
+
+providers:
+  - name: fides
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards
