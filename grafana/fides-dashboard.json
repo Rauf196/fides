@@ -148,7 +148,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
-          "unit": "dateTimeFromNow",
+          "unit": "dateTimeAsIsoNoDateIfToday",
           "thresholds": {
             "mode": "absolute",
             "steps": [

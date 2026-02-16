@@ -795,6 +795,7 @@ dependencies = [
  "fides-proto",
  "rand 0.8.5",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tracing",
  "tracing-subscriber",
