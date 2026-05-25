@@ -266,6 +266,27 @@ A background task runs three financial integrity checks on a configurable interv
 | `GET /health` | Liveness probe | Never fails (if process is running) |
 | `GET /ready` | Readiness probe | 503 if DB unreachable or shutting down |
 
+## Docker
+
+Prometheus + Grafana stack (server runs on host, scraped via `host.docker.internal`):
+
+```bash
+# Start observability stack
+docker compose up -d
+
+# Stop
+docker compose down
+```
+
+Exposed ports:
+
+| Port | Service |
+|------|---------|
+| `9091` | Prometheus UI |
+| `3000` | Grafana (anonymous viewer, fides dashboard preloaded) |
+
+Run the server on the host (`cargo run -p fides-server --release`); Prometheus scrapes its `/metrics` endpoint via the host gateway. No server container — keeps Postgres + binary on host for lower-latency benchmarks.
+
 ## Testing
 
 Comprehensive unit, property, and integration tests covering invariants, storage correctness, and concurrent behavior.
@@ -322,41 +343,12 @@ Reports throughput (ops/sec), rejection rate, and latency percentiles (p50/p95/p
 
 ## Project Structure
 
-```
-fides/
-├── fides-proto/              # protobuf definitions + generated code
-│   └── proto/ledger.proto
-├── fides-server/             # main server crate
-│   ├── src/
-│   │   ├── main.rs           # CLI, tracing init, signal handling
-│   │   ├── lib.rs            # library root
-│   │   ├── config.rs         # layered config (toml/env/cli)
-│   │   ├── server.rs         # DB connect, migrations, serve()
-│   │   ├── health.rs         # /health and /ready endpoints
-│   │   ├── domain/           # core types with compile-time guarantees
-│   │   │   ├── money.rs      # Amount with checked arithmetic
-│   │   │   ├── account.rs    # AccountId, AccountType, NormalBalance
-│   │   │   ├── entry.rs      # EntryId, EntryType, EntryStatus
-│   │   │   ├── transaction.rs # TransactionId, TransactionStatus
-│   │   │   └── validation.rs # TransferLeg, balance computation
-│   │   ├── storage/          # persistence layer
-│   │   │   ├── postgres.rs   # PostgresStorage (all SQL)
-│   │   │   └── cache.rs      # BalanceCache (DashMap)
-│   │   ├── service/          # gRPC handlers
-│   │   │   └── ledger.rs     # LedgerService impl
-│   │   └── observability/    # metrics + monitoring
-│   │       ├── metrics.rs    # Prometheus recorder + /metrics
-│   │       ├── grpc_metrics.rs # Tower middleware for per-RPC metrics
-│   │       └── integrity.rs  # Background integrity checker
-│   ├── tests/                # integration tests
-│   │   ├── storage_integration.rs
-│   │   ├── grpc_integration.rs
-│   │   └── property_tests.rs
-│   └── benches/
-│       └── ledger.rs         # Criterion benchmarks
-├── fides-load/               # load testing tool
-├── migrations/               # SQL schema (embedded in binary)
-└── config.example.toml
+Workspace has three crates:
+
+```mermaid
+graph LR
+  server[fides-server<br/>gRPC service, storage, domain, observability] --> proto[fides-proto<br/>protobuf definitions + generated code]
+  load[fides-load<br/>Load generator] --> proto
 ```
 
 ## Limitations
